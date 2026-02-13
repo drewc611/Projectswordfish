@@ -1,5 +1,9 @@
 // AWS Bedrock AI Anomaly Detection & Intelligence Service
 // Provides anomaly detection, risk scoring, predictive analytics, and fraud detection
+//
+// SECURITY NOTE: Only non-secret configuration should use the VITE_ prefix.
+// NEVER put AWS credentials or tokens in VITE_ environment variables.
+// These values are embedded in the client-side JavaScript bundle.
 
 const BEDROCK_CONFIG = {
   region: import.meta.env.VITE_AWS_REGION || 'us-east-1',

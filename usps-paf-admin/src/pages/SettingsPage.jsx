@@ -80,11 +80,11 @@ export default function SettingsPage() {
               </div>
               <div className="form-group">
                 <label>API Key</label>
-                <input type="password" defaultValue="••••••••••••••••••••" />
+                <input type="password" placeholder="Enter API key" />
               </div>
               <div className="form-group">
                 <label>DPV Product Key</label>
-                <input type="password" defaultValue="••••••••••••" />
+                <input type="password" placeholder="Enter DPV product key" />
               </div>
               <div className="form-group">
                 <label>Data Update Frequency</label>
@@ -139,11 +139,11 @@ export default function SettingsPage() {
               </div>
               <div className="form-group">
                 <label>AWS Access Key ID</label>
-                <input type="password" defaultValue="••••••••••••••••" />
+                <input type="password" placeholder="Enter AWS Access Key ID" />
               </div>
               <div className="form-group">
                 <label>AWS Secret Access Key</label>
-                <input type="password" defaultValue="••••••••••••••••••••••••" />
+                <input type="password" placeholder="Enter AWS Secret Access Key" />
               </div>
               <div className="form-group">
                 <label>Max Tokens per Request</label>
