@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import Header from '../components/Header';
 import { validateAddressWithAI } from '../services/bedrockService';
 import { addressValidationHistory } from '../data/mockData';
+import { sanitizeAddressInput, isPlausibleAddress, MAX_BATCH_SIZE } from '../utils/validation';
 
 export default function AddressValidation() {
   const [activeTab, setActiveTab] = useState('single');
@@ -14,11 +15,12 @@ export default function AddressValidation() {
   const [batchResults, setBatchResults] = useState(null);
 
   const handleValidate = async () => {
-    if (!addressInput.trim()) return;
+    const sanitized = sanitizeAddressInput(addressInput);
+    if (!sanitized || !isPlausibleAddress(sanitized)) return;
     setIsLoading(true);
     setValidationResult(null);
     try {
-      const result = await validateAddressWithAI(addressInput);
+      const result = await validateAddressWithAI(sanitized);
       setValidationResult(result);
     } finally {
       setIsLoading(false);
@@ -29,10 +31,18 @@ export default function AddressValidation() {
     if (!batchInput.trim()) return;
     setIsLoading(true);
     setBatchResults(null);
-    const addresses = batchInput.split('\n').filter((a) => a.trim());
+    const addresses = batchInput
+      .split('\n')
+      .map((a) => sanitizeAddressInput(a))
+      .filter((a) => a && isPlausibleAddress(a))
+      .slice(0, MAX_BATCH_SIZE);
+    if (addresses.length === 0) {
+      setIsLoading(false);
+      return;
+    }
     const results = [];
     for (const addr of addresses) {
-      const result = await validateAddressWithAI(addr.trim());
+      const result = await validateAddressWithAI(addr);
       results.push(result);
     }
     setBatchResults(results);

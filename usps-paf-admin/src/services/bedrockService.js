@@ -1,5 +1,10 @@
 // AWS Bedrock Address Intelligence Service
 // Integrates with AWS Bedrock for AI-powered address validation and enrichment
+//
+// SECURITY NOTE: Only non-secret configuration should use the VITE_ prefix.
+// NEVER put AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, or session tokens
+// in VITE_ environment variables — they will be exposed in the client bundle.
+// Secrets must be kept on the server side and accessed via a backend API proxy.
 
 const BEDROCK_CONFIG = {
   region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
