@@ -8,6 +8,7 @@ import AddressValidation from './pages/AddressValidation';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/SettingsPage';
 import HelpPage from './pages/HelpPage';
+import AIInsights from './pages/AIInsights';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route path="/paf" element={<PAFManagement />} />
             <Route path="/crid" element={<CRIDManagement />} />
             <Route path="/mid" element={<MailerIDManagement />} />
+            <Route path="/ai-insights" element={<AIInsights />} />
             <Route path="/address" element={<AddressValidation />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<SettingsPage />} />

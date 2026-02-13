@@ -1,13 +1,24 @@
-import { useState } from 'react';
-import { Plus, Eye, X, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Eye, X, Settings, Brain, ShieldAlert } from 'lucide-react';
 import Header from '../components/Header';
 import StatusBadge from '../components/StatusBadge';
 import { mailerIds } from '../data/mockData';
+import { detectVolumeAnomalies } from '../services/anomalyService';
 
 export default function MailerIDManagement() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMID, setSelectedMID] = useState(null);
+  const [anomalies, setAnomalies] = useState(null);
+
+  useEffect(() => {
+    detectVolumeAnomalies().then(setAnomalies);
+  }, []);
+
+  const getMIDFlags = (midId) => {
+    if (!anomalies) return [];
+    return anomalies.anomalies.filter(a => a.entity === midId);
+  };
 
   const filteredMIDs = mailerIds.filter((mid) => {
     const matchesStatus = statusFilter === 'All' || mid.status === statusFilter;
@@ -26,9 +37,16 @@ export default function MailerIDManagement() {
         <div className="card">
           <div className="card-header">
             <h3>Mailer Identifiers (MID)</h3>
-            <button className="btn btn-primary">
-              <Plus size={16} /> Request New MID
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {anomalies && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4338ca', fontWeight: 600 }}>
+                  <Brain size={14} /> Anomaly Monitoring Active
+                </span>
+              )}
+              <button className="btn btn-primary">
+                <Plus size={16} /> Request New MID
+              </button>
+            </div>
           </div>
           <div className="card-body">
             <div className="filters-bar">
@@ -54,10 +72,9 @@ export default function MailerIDManagement() {
               <thead>
                 <tr>
                   <th>Mailer ID</th>
-                  <th>Digits</th>
                   <th>Owner (CRID)</th>
-                  <th>Nickname</th>
                   <th>Status</th>
+                  <th>AI Flags</th>
                   <th>Mail Classes</th>
                   <th>Annual Volume</th>
                   <th>Data Profile</th>
@@ -65,43 +82,53 @@ export default function MailerIDManagement() {
                 </tr>
               </thead>
               <tbody>
-                {filteredMIDs.map((mid) => (
-                  <tr key={mid.id}>
-                    <td>{mid.id}</td>
-                    <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
-                      <span className="badge badge-active">{mid.digits}-digit</span>
-                    </td>
-                    <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
-                      <div>{mid.ownerName}</div>
-                      <div style={{ fontSize: 11, color: 'var(--usps-gray-400)' }}>{mid.ownerCRID}</div>
-                    </td>
-                    <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>{mid.nickname}</td>
-                    <td><StatusBadge status={mid.status} /></td>
-                    <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
-                      <div className="tag-list">
-                        {mid.mailClass.map((mc) => (
-                          <span key={mc} className="tag">{mc}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
-                      {mid.annualVolume > 0
-                        ? (mid.annualVolume / 1000000).toFixed(1) + 'M'
-                        : '--'}
-                    </td>
-                    <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
-                      <span className="tag">{mid.dataDistributionProfile}</span>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setSelectedMID(mid)}
-                      >
-                        <Eye size={14} /> View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredMIDs.map((mid) => {
+                  const flags = getMIDFlags(mid.id);
+                  return (
+                    <tr key={mid.id} style={flags.length > 0 ? { background: '#fef2f2' } : {}}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {flags.length > 0 && <ShieldAlert size={14} color="#ef4444" />}
+                          {mid.id}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--usps-gray-400)', fontWeight: 400 }}>{mid.digits}-digit | {mid.nickname}</div>
+                      </td>
+                      <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
+                        <div>{mid.ownerName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--usps-gray-400)' }}>{mid.ownerCRID}</div>
+                      </td>
+                      <td><StatusBadge status={mid.status} /></td>
+                      <td>
+                        {flags.length > 0 ? (
+                          <span className={`risk-score-inline ${flags[0].severity}`}>
+                            <ShieldAlert size={11} />
+                            {flags[0].severity}
+                          </span>
+                        ) : (
+                          <span className="risk-score-inline low">Clear</span>
+                        )}
+                      </td>
+                      <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
+                        <div className="tag-list">
+                          {mid.mailClass.map((mc) => (
+                            <span key={mc} className="tag">{mc}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
+                        {mid.annualVolume > 0 ? (mid.annualVolume / 1000000).toFixed(1) + 'M' : '--'}
+                      </td>
+                      <td style={{ color: 'var(--usps-gray-600)', fontWeight: 400 }}>
+                        <span className="tag">{mid.dataDistributionProfile}</span>
+                      </td>
+                      <td>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setSelectedMID(mid)}>
+                          <Eye size={14} /> View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -118,6 +145,22 @@ export default function MailerIDManagement() {
                 </button>
               </div>
               <div className="modal-body">
+                {/* AI Anomaly Flags */}
+                {getMIDFlags(selectedMID.id).length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    {getMIDFlags(selectedMID.id).map((flag) => (
+                      <div key={flag.id} className="anomaly-recommendation" style={{ marginBottom: 8, background: '#fef2f2', color: '#b91c1c' }}>
+                        <ShieldAlert size={14} />
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>AI Alert: {flag.type.replace(/_/g, ' ')} (z-score: {flag.zScore})</div>
+                          <div style={{ fontSize: 12 }}>{flag.description}</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4 }}>{flag.recommendation}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="detail-grid">
                   <div className="detail-item">
                     <span className="detail-label">Mailer ID</span>
@@ -156,7 +199,7 @@ export default function MailerIDManagement() {
                     <span className="detail-value">{selectedMID.annualVolume.toLocaleString()}</span>
                   </div>
                   <div className="detail-item">
-                    <span className="detail-label">Data Distribution Profile</span>
+                    <span className="detail-label">Data Distribution</span>
                     <span className="detail-value">{selectedMID.dataDistributionProfile}</span>
                   </div>
                 </div>
@@ -169,31 +212,25 @@ export default function MailerIDManagement() {
                   <div className="detail-grid">
                     <div className="detail-item">
                       <span className="detail-label">ACS Billing</span>
-                      <span className="detail-value">
-                        {selectedMID.acsBilling ? (
-                          <span className="badge badge-active">Enabled</span>
-                        ) : (
-                          <span className="badge badge-expired">Disabled</span>
-                        )}
-                      </span>
+                      {selectedMID.acsBilling ? (
+                        <span className="badge badge-active">Enabled</span>
+                      ) : (
+                        <span className="badge badge-expired">Disabled</span>
+                      )}
                     </div>
                     <div className="detail-item">
                       <span className="detail-label">eInduction</span>
-                      <span className="detail-value">
-                        {selectedMID.eInduction ? (
-                          <span className="badge badge-active">Enabled</span>
-                        ) : (
-                          <span className="badge badge-expired">Disabled</span>
-                        )}
-                      </span>
+                      {selectedMID.eInduction ? (
+                        <span className="badge badge-active">Enabled</span>
+                      ) : (
+                        <span className="badge badge-expired">Disabled</span>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 <div style={{ marginTop: 16 }}>
-                  <h4 style={{ fontSize: 14, marginBottom: 8, color: 'var(--usps-gray-500)' }}>
-                    Mail Classes
-                  </h4>
+                  <h4 style={{ fontSize: 14, marginBottom: 8, color: 'var(--usps-gray-500)' }}>Mail Classes</h4>
                   <div className="tag-list">
                     {selectedMID.mailClass.map((mc) => (
                       <span key={mc} className="tag">{mc}</span>

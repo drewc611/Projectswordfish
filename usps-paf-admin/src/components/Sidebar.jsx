@@ -8,6 +8,7 @@ import {
   BarChart3,
   Settings,
   HelpCircle,
+  Brain,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -40,6 +41,12 @@ export default function Sidebar() {
         <NavLink to="/mid" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Hash />
           Mailer ID
+        </NavLink>
+
+        <div className="nav-section">Intelligence</div>
+        <NavLink to="/ai-insights" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Brain />
+          AI Insights
         </NavLink>
 
         <div className="nav-section">Services</div>
