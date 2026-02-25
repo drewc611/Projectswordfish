@@ -1,9 +1,38 @@
 import { useState } from 'react';
-import { Save, Key, Globe, Database, Shield } from 'lucide-react';
+import { Save, Key, Globe, Database, Shield, AlertTriangle } from 'lucide-react';
 import Header from '../components/Header';
+import { isValidCIDR, isValidSessionTimeout, isValidEndpointUrl } from '../utils/validation';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
+  const [sessionTimeout, setSessionTimeout] = useState(30);
+  const [ipAllowlist, setIpAllowlist] = useState("10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16");
+  const [securityErrors, setSecurityErrors] = useState({});
+  const [apiEndpoint, setApiEndpoint] = useState('https://ams-api.usps.com/v1');
+  const [apiErrors, setApiErrors] = useState({});
+
+  const validateSecuritySettings = () => {
+    const errors = {};
+    if (!isValidSessionTimeout(sessionTimeout)) {
+      errors.sessionTimeout = 'Session timeout must be between 5 and 1440 minutes';
+    }
+    const lines = ipAllowlist.split('\n').map((l) => l.trim()).filter(Boolean);
+    const invalidCidrs = lines.filter((l) => !isValidCIDR(l));
+    if (invalidCidrs.length > 0) {
+      errors.ipAllowlist = `Invalid CIDR blocks: ${invalidCidrs.join(', ')}`;
+    }
+    setSecurityErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateApiSettings = () => {
+    const errors = {};
+    if (!isValidEndpointUrl(apiEndpoint)) {
+      errors.endpoint = 'Endpoint must be a valid URL (https preferred) or a relative path starting with /';
+    }
+    setApiErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   return (
     <>
@@ -76,15 +105,22 @@ export default function SettingsPage() {
             <div className="card-body">
               <div className="form-group">
                 <label>AMS API Endpoint</label>
-                <input type="text" defaultValue="https://ams-api.usps.com/v1" />
+                <input
+                  type="text"
+                  value={apiEndpoint}
+                  onChange={(e) => setApiEndpoint(e.target.value)}
+                  style={apiErrors.endpoint ? { borderColor: '#dc2626' } : {}}
+                />
+                {apiErrors.endpoint && (
+                  <span style={{ fontSize: 12, color: '#dc2626', marginTop: 4, display: 'block' }}>{apiErrors.endpoint}</span>
+                )}
               </div>
-              <div className="form-group">
-                <label>API Key</label>
-                <input type="password" placeholder="Enter API key" />
-              </div>
-              <div className="form-group">
-                <label>DPV Product Key</label>
-                <input type="password" placeholder="Enter DPV product key" />
+              <div style={{ padding: 16, background: '#fef2f2', borderRadius: 6, marginBottom: 16, fontSize: 13, color: '#991b1b', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <strong>Security Notice:</strong> API keys and product keys must be configured as server-side environment
+                  variables (<code>AMS_API_KEY</code>, <code>DPV_PRODUCT_KEY</code>). Never store secrets in client-side code.
+                </div>
               </div>
               <div className="form-group">
                 <label>Data Update Frequency</label>
@@ -105,7 +141,7 @@ export default function SettingsPage() {
                   ))}
                 </div>
               </div>
-              <button className="btn btn-primary">
+              <button className="btn btn-primary" onClick={validateApiSettings}>
                 <Save size={16} /> Save API Configuration
               </button>
             </div>
@@ -137,13 +173,13 @@ export default function SettingsPage() {
                   <option value="anthropic.claude-opus-4-6">Claude Opus 4.6 (Most Capable)</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>AWS Access Key ID</label>
-                <input type="password" placeholder="Enter AWS Access Key ID" />
-              </div>
-              <div className="form-group">
-                <label>AWS Secret Access Key</label>
-                <input type="password" placeholder="Enter AWS Secret Access Key" />
+              <div style={{ padding: 16, background: '#fef2f2', borderRadius: 6, marginBottom: 16, fontSize: 13, color: '#991b1b', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <strong>Security Notice:</strong> AWS credentials must never be entered or stored client-side.
+                  Configure <code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code> as server-side
+                  environment variables. The portal communicates with Bedrock through a backend API proxy.
+                </div>
               </div>
               <div className="form-group">
                 <label>Max Tokens per Request</label>
@@ -180,7 +216,21 @@ export default function SettingsPage() {
             <div className="card-body">
               <div className="form-group">
                 <label>Session Timeout (minutes)</label>
-                <input type="number" defaultValue={30} />
+                <input
+                  type="number"
+                  value={sessionTimeout}
+                  onChange={(e) => setSessionTimeout(e.target.value)}
+                  min={5}
+                  max={1440}
+                  style={securityErrors.sessionTimeout ? { borderColor: '#dc2626' } : {}}
+                />
+                {securityErrors.sessionTimeout ? (
+                  <span style={{ fontSize: 12, color: '#dc2626', marginTop: 4, display: 'block' }}>{securityErrors.sessionTimeout}</span>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--usps-gray-400)', marginTop: 4, display: 'block' }}>
+                    Allowed range: 5–1440 minutes
+                  </span>
+                )}
               </div>
               <div className="form-group">
                 <label>Two-Factor Authentication</label>
@@ -192,10 +242,19 @@ export default function SettingsPage() {
               </div>
               <div className="form-group">
                 <label>IP Allowlist</label>
-                <textarea rows={3} defaultValue={"10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16"} />
-                <span style={{ fontSize: 12, color: 'var(--usps-gray-400)', marginTop: 4, display: 'block' }}>
-                  One CIDR block per line
-                </span>
+                <textarea
+                  rows={3}
+                  value={ipAllowlist}
+                  onChange={(e) => setIpAllowlist(e.target.value)}
+                  style={securityErrors.ipAllowlist ? { borderColor: '#dc2626' } : {}}
+                />
+                {securityErrors.ipAllowlist ? (
+                  <span style={{ fontSize: 12, color: '#dc2626', marginTop: 4, display: 'block' }}>{securityErrors.ipAllowlist}</span>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--usps-gray-400)', marginTop: 4, display: 'block' }}>
+                    One CIDR block per line (e.g., 10.0.0.0/8)
+                  </span>
+                )}
               </div>
               <div className="form-group">
                 <label>Audit Log Retention</label>
@@ -206,7 +265,7 @@ export default function SettingsPage() {
                   <option value="730">2 Years</option>
                 </select>
               </div>
-              <button className="btn btn-primary">
+              <button className="btn btn-primary" onClick={validateSecuritySettings}>
                 <Save size={16} /> Save Security Settings
               </button>
             </div>
