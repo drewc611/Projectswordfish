@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { validateAddressWithAI } from '../bedrockService.js'
 
+// The rate limiter allows 10 calls per 60s, so tests within a single run should not hit limits.
+// However, to be safe, we test that the service still works correctly.
+
 describe('validateAddressWithAI', () => {
   it('returns valid result for properly formatted address', async () => {
     const result = await validateAddressWithAI('123 Main St, Springfield, IL 62701')

@@ -6,11 +6,19 @@
 // in VITE_ environment variables — they will be exposed in the client bundle.
 // Secrets must be kept on the server side and accessed via a backend API proxy.
 
+import { createRateLimiter } from '../utils/validation';
+
 const BEDROCK_CONFIG = {
   region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
   modelId: import.meta.env.VITE_BEDROCK_MODEL_ID || 'anthropic.claude-sonnet-4-5-20250929',
   endpoint: import.meta.env.VITE_BEDROCK_ENDPOINT || '/api/bedrock',
 };
+
+// Rate limiter: max 10 single validations per 60 seconds
+const singleValidationLimiter = createRateLimiter(10, 60_000);
+
+// Rate limiter: max 3 batch validations per 60 seconds
+const batchValidationLimiter = createRateLimiter(3, 60_000);
 
 // Simulated Bedrock response for address validation and enrichment
 // In production, this would call AWS Bedrock via a backend API
@@ -26,6 +34,11 @@ async function invokeBedrockModel(prompt) {
 }
 
 export async function validateAddressWithAI(addressInput) {
+  if (!singleValidationLimiter.tryAcquire()) {
+    const retryMs = singleValidationLimiter.getRetryAfterMs();
+    throw new Error(`Rate limit exceeded. Try again in ${Math.ceil(retryMs / 1000)} seconds.`);
+  }
+
   const prompt = `Validate and standardize the following USPS address. Return the standardized components: ${addressInput}`;
 
   await invokeBedrockModel(prompt);
@@ -96,10 +109,69 @@ export async function validateAddressWithAI(addressInput) {
 }
 
 export async function batchValidateAddresses(addresses) {
+  if (!batchValidationLimiter.tryAcquire()) {
+    const retryMs = batchValidationLimiter.getRetryAfterMs();
+    throw new Error(`Batch rate limit exceeded. Try again in ${Math.ceil(retryMs / 1000)} seconds.`);
+  }
+
   const results = [];
   for (const addr of addresses) {
-    const result = await validateAddressWithAI(addr);
-    results.push(result);
+    // Bypass single-address rate limiter for individual items within an approved batch
+    const prompt = `Validate and standardize the following USPS address. Return the standardized components: ${addr}`;
+    await invokeBedrockModel(prompt);
+
+    const parts = addr.split(',').map((p) => p.trim());
+    const streetLine = parts[0] || '';
+    const city = parts[1] || '';
+    const stateZip = parts[2] || '';
+    const [state, zip] = stateZip.split(/\s+/);
+    const isValid = streetLine && city && state && zip;
+    const hasZipPlus4 = zip && zip.includes('-');
+
+    results.push({
+      input: addr,
+      standardized: {
+        addressLine1: streetLine.toUpperCase(),
+        addressLine2: '',
+        city: (city || '').toUpperCase(),
+        state: (state || '').toUpperCase(),
+        zip5: zip ? zip.substring(0, 5) : '',
+        zipPlus4: hasZipPlus4 ? zip : zip ? `${zip}-0001` : '',
+      },
+      validation: {
+        isValid,
+        dpvConfirmed: isValid ? 'Y' : 'N',
+        dpvFootnotes: isValid ? ['AA', 'BB'] : ['A1'],
+        carrierRoute: isValid ? 'C' + String(Math.floor(Math.random() * 999)).padStart(3, '0') : '',
+        deliveryPoint: isValid ? String(Math.floor(Math.random() * 99)).padStart(2, '0') : '',
+        congressionalDistrict: isValid ? String(Math.floor(Math.random() * 53)).padStart(2, '0') : '',
+      },
+      ncoaLink: { moveType: null, moveDate: null, ncoaReturnCode: '00', newAddress: null },
+      enrichment: {
+        addressType: isValid ? 'Street' : 'Unknown',
+        residentialIndicator: isValid ? (Math.random() > 0.5 ? 'Residential' : 'Business') : 'Unknown',
+        vacancyIndicator: 'N',
+        countyName: isValid ? 'Sample County' : '',
+        countyFips: isValid ? '12345' : '',
+        suiteLink: null,
+        lacslinkIndicator: 'N',
+        elotSequence: isValid ? String(Math.floor(Math.random() * 9999)).padStart(4, '0') : '',
+        elotOrder: isValid ? 'A' : '',
+      },
+      aiInsights: {
+        confidence: isValid ? 0.95 : 0.2,
+        suggestions: isValid
+          ? ['Address matches USPS records', 'ZIP+4 appended successfully']
+          : ['Address could not be verified', 'Check street name spelling'],
+        relatedAddresses: [],
+      },
+      metadata: {
+        engine: 'AWS Bedrock + AMS API',
+        modelId: BEDROCK_CONFIG.modelId,
+        timestamp: new Date().toISOString(),
+        processingTimeMs: Math.floor(800 + Math.random() * 700),
+      },
+    });
   }
   return results;
 }

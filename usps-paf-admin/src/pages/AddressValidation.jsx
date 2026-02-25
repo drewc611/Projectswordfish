@@ -13,15 +13,19 @@ export default function AddressValidation() {
   const [isLoading, setIsLoading] = useState(false);
   const [batchInput, setBatchInput] = useState('');
   const [batchResults, setBatchResults] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleValidate = async () => {
     const sanitized = sanitizeAddressInput(addressInput);
     if (!sanitized || !isPlausibleAddress(sanitized)) return;
     setIsLoading(true);
     setValidationResult(null);
+    setErrorMessage('');
     try {
       const result = await validateAddressWithAI(sanitized);
       setValidationResult(result);
+    } catch (err) {
+      setErrorMessage(err.message || 'Validation failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -31,6 +35,7 @@ export default function AddressValidation() {
     if (!batchInput.trim()) return;
     setIsLoading(true);
     setBatchResults(null);
+    setErrorMessage('');
     const addresses = batchInput
       .split('\n')
       .map((a) => sanitizeAddressInput(a))
@@ -40,13 +45,18 @@ export default function AddressValidation() {
       setIsLoading(false);
       return;
     }
-    const results = [];
-    for (const addr of addresses) {
-      const result = await validateAddressWithAI(addr);
-      results.push(result);
+    try {
+      const results = [];
+      for (const addr of addresses) {
+        const result = await validateAddressWithAI(addr);
+        results.push(result);
+      }
+      setBatchResults(results);
+    } catch (err) {
+      setErrorMessage(err.message || 'Batch validation failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-    setBatchResults(results);
-    setIsLoading(false);
   };
 
   const getConfidenceClass = (confidence) => {
@@ -90,6 +100,14 @@ export default function AddressValidation() {
             Validation History
           </button>
         </div>
+
+        {/* Error Banner */}
+        {errorMessage && (
+          <div style={{ padding: '12px 16px', background: '#fef2f2', borderRadius: 8, marginBottom: 16, fontSize: 13, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #fecaca' }}>
+            <AlertTriangle size={16} />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
         {/* Single Address Validation */}
         {activeTab === 'single' && (
